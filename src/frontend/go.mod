@@ -19,6 +19,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.39.0
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
+	golang.org/x/sync v0.19.0
 )
 
 require (
