@@ -53,7 +53,8 @@ namespace cartservice.cartstore
                                ";Password="     +
                                alloyDBPassword  +
                                ";Database="     +
-                               databaseName;
+                               databaseName     +
+                               ";SSL Mode=Require;Trust Server Certificate=true";
 
             tableName = configuration["ALLOYDB_TABLE_NAME"];
         }

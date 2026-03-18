@@ -106,6 +106,10 @@ func loadCatalogFromAlloyDB(catalog *pb.ListProductsResponse) error {
 	cleanup := func() error { return dialer.Close() }
 	defer cleanup()
 
+	// Note: sslmode is set to "disable" because the AlloyDB Go Connector
+	// provides a secure mTLS connection automatically. Setting it to "require"
+	// here would cause a second, nested TLS handshake that is not supported
+	// by the connector and would result in connection failure.
 	dsn := fmt.Sprintf(
 		"user=%s password=%s dbname=%s sslmode=disable",
 		"postgres", pgPassword, pgDatabaseName,
