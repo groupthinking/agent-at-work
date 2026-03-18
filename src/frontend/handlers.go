@@ -31,6 +31,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	pb "github.com/GoogleCloudPlatform/microservices-demo/src/frontend/genproto"
 	"github.com/GoogleCloudPlatform/microservices-demo/src/frontend/money"
@@ -280,25 +281,35 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 		Price    *pb.Money
 	}
 	items := make([]cartItemView, len(cart))
-	totalPrice := pb.Money{CurrencyCode: currentCurrency(r)}
+	g, ctx := errgroup.WithContext(r.Context())
 	for i, item := range cart {
-		p, err := fe.getProduct(r.Context(), item.GetProductId())
-		if err != nil {
-			renderHTTPError(log, r, w, errors.Wrapf(err, "could not retrieve product #%s", item.GetProductId()), http.StatusInternalServerError)
-			return
-		}
-		price, err := fe.convertCurrency(r.Context(), p.GetPriceUsd(), currentCurrency(r))
-		if err != nil {
-			renderHTTPError(log, r, w, errors.Wrapf(err, "could not convert currency for product #%s", item.GetProductId()), http.StatusInternalServerError)
-			return
-		}
+		i, item := i, item // create local copies for closure
+		g.Go(func() error {
+			p, err := fe.getProduct(ctx, item.GetProductId())
+			if err != nil {
+				return errors.Wrapf(err, "could not retrieve product #%s", item.GetProductId())
+			}
+			price, err := fe.convertCurrency(ctx, p.GetPriceUsd(), currentCurrency(r))
+			if err != nil {
+				return errors.Wrapf(err, "could not convert currency for product #%s", item.GetProductId())
+			}
 
-		multPrice := money.MultiplySlow(*price, uint32(item.GetQuantity()))
-		items[i] = cartItemView{
-			Item:     p,
-			Quantity: item.GetQuantity(),
-			Price:    &multPrice}
-		totalPrice = money.Must(money.Sum(totalPrice, multPrice))
+			multPrice := money.MultiplySlow(*price, uint32(item.GetQuantity()))
+			items[i] = cartItemView{
+				Item:     p,
+				Quantity: item.GetQuantity(),
+				Price:    &multPrice}
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		renderHTTPError(log, r, w, err, http.StatusInternalServerError)
+		return
+	}
+
+	totalPrice := pb.Money{CurrencyCode: currentCurrency(r)}
+	for _, item := range items {
+		totalPrice = money.Must(money.Sum(totalPrice, *item.Price))
 	}
 	totalPrice = money.Must(money.Sum(totalPrice, *shippingCost))
 	year := time.Now().Year()
