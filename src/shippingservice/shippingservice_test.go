@@ -15,6 +15,7 @@
 package main
 
 import (
+	"regexp"
 	"testing"
 
 	"golang.org/x/net/context"
@@ -83,8 +84,10 @@ func TestShipOrder(t *testing.T) {
 	if err != nil {
 		t.Errorf("TestShipOrder (%v) failed", err)
 	}
-	// @todo improve quality of this test to check for a pattern such as '[A-Z]{2}-\d+-\d+'.
-	if len(res.TrackingId) != 18 {
-		t.Errorf("TestShipOrder: Tracking ID is malformed - has %d characters, %d expected", len(res.TrackingId), 18)
+
+	// check for a pattern such as '[A-Z]{2}-\d+-\d+'.
+	re := regexp.MustCompile(`^[A-Z]{2}-\d+-\d+$`)
+	if !re.MatchString(res.TrackingId) {
+		t.Errorf("TestShipOrder: Tracking ID is malformed - %s, expected format [A-Z]{2}-\\d+-\\d+", res.TrackingId)
 	}
 }
